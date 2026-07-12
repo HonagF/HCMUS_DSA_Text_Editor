@@ -1,7 +1,6 @@
 #include "list.h"
 #include <stdio.h>
 
-
 void printList(EditorList *list) {
   Node *temp = list->head;
   while (temp != NULL) {
@@ -11,34 +10,45 @@ void printList(EditorList *list) {
   printf("\n");
 }
 
+void printListWithCursor(EditorList *list) {
+  if (list->cursor == NULL)
+    printf("|");
+  for (Node *temp = list->head; temp != NULL; temp = temp->next) {
+    printf("%c", temp->data);
+    if (list->cursor == temp)
+      printf("|");
+  }
+  printf("\n====================\n");
+}
+
 int main() {
   EditorList list;
   initList(&list);
 
-  printf("1. Go vao chu 'H', 'C', 'M', 'U', 'S':\n");
-  insertChar(&list, 'H');
+  insertChar(&list, 'A');
+  insertChar(&list, 'B');
   insertChar(&list, 'C');
-  insertChar(&list, 'M');
-  insertChar(&list, 'U');
-  insertChar(&list, 'S');
+  insertChar(&list, '\n');
+  insertChar(&list, 'D');
+  insertChar(&list, 'E');
+  insertChar(&list, 'F');
 
   printf("Van ban hien tai: ");
-  printList(&list);
+  printListWithCursor(&list);
 
-  printf("\n2. Nhan backspace 2 lan (Xoa chu U, S): \n");
-  deleteChar(&list);
-  deleteChar(&list);
+  printf("\n2. Lui trai hai lan: \n");
+  moveCursorLeft(&list);
+  moveCursorLeft(&list);
+  printListWithCursor(&list);
 
-  printf("Van ban sau khi xoa: ");
-  printList(&list);
+  printf("\n3. Up: \n");
+  moveCursorUp(&list);
+  printListWithCursor(&list);
 
-  printf("\n3. Go them chu 'K', 'H', 'T', 'N'):\n");
-  insertChar(&list, 'K');
-  insertChar(&list, 'H');
-  insertChar(&list, 'T');
-  insertChar(&list, 'N');
+  printf("\n4. Down: \n");
+  moveCursorDown(&list);
+  printListWithCursor(&list);
 
-  printf("Van ban sau khi them: ");
-  printList(&list);
+  destroyList(&list);
   return 0;
 }
