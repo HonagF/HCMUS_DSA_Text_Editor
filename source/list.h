@@ -20,3 +20,6 @@ void deleteRight(EditorList *list);
 void moveCursorPrevWord(EditorList *list);
 void moveCursorNextWord(EditorList *list);
 void destroyList(EditorList *list);
+int getColumn(EditorList *list);
+void moveCursorUp(EditorList *list);
+void moveCursorDown(EditorList *list);

@@ -152,3 +152,56 @@ void moveCursorNextWord(EditorList *list) {
     moveCursorRight(list);
   }
 }
+
+int getColumn(EditorList *list) {
+  int col = 0;
+  Node *temp = list->cursor;
+
+  while (temp != NULL && temp->data != '\n') {
+    col++;
+    temp = temp->prev;
+  }
+  return col;
+}
+
+void moveCursorUp(EditorList *list) {
+  int targetCol = getColumn(list);
+  while (list->cursor != NULL && list->cursor->data != '\n') {
+    moveCursorLeft(list);
+  }
+  if (list->cursor == NULL) {
+    return;
+  }
+  if (list->cursor->data == '\n') {
+    moveCursorLeft(list);
+  }
+  while (list->cursor != NULL && list->cursor->data != '\n') {
+    moveCursorLeft(list);
+  }
+  for (int i = 0; i < targetCol; i++) {
+    Node *rightNode = (list->cursor == NULL) ? list->head : list->cursor->next;
+    if (rightNode == NULL || rightNode->data == '\n')
+      break;
+    moveCursorRight(list);
+  }
+}
+
+void moveCursorDown(EditorList *list) {
+  int targetCol = getColumn(list);
+  while (1) {
+    Node *rightNode = (list->cursor == NULL) ? list->head : list->cursor->next;
+    if (rightNode == NULL)
+      return;
+    if (rightNode->data == '\n') {
+      moveCursorRight(list);
+      break;
+    }
+    moveCursorRight(list);
+  }
+  for (int i = 0; i < targetCol; i++) {
+    Node *rightNode = (list->cursor == NULL) ? list->head : list->cursor->next;
+    if (rightNode == NULL || rightNode->data == '\n')
+      break;
+    moveCursorRight(list);
+  }
+}
