@@ -10,8 +10,8 @@ Nhánh `dev` dùng để ghép nối các module code từ các nhánh tính nă
 
 ## Hướng dẫn biên dịch 
 
-Khi các file `.c` và `.h` từ các nhánh đã được gom chung vào thư mục `src/`, mở Terminal tại thư mục gốc của đồ án và chạy lệnh sau để biên dịch toàn bộ chương trình:
+Đã xong function linked list DLL cơ bản. Muốn test thì pull về rồi vào terminal trong VS code gõ
 
 ```bash
-gcc src/*.c -o dsa_notepad.exe
-dsa_notepad.exe
+mingw32-make
+.\Editor.exe
