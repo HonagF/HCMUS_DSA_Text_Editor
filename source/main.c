@@ -1,5 +1,5 @@
 #include "list.h"
-#include <conio.h> // Thu vien chua _getch()
+#include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -19,22 +19,21 @@ int main() {
   initList(&list);
 
   while (1) {
-    system("cls"); // Xóa màn hình cũ (Windows)
+    system("cls");
     printListWithCursor(&list);
 
-    char ch = _getch(); // Bắt phím (Không cần nhấn Enter)
+    char ch = _getch();
 
-    if (ch == 27) { // Phím ESC để thoát
+    if (ch == 27) {
       break;
-    } else if (ch == 8) { // Phím Backspace
+    } else if (ch == 8) {
       deleteChar(&list);
     } else if (ch == 13) {
       insertChar(&list, '\n');
+    } else if (ch == 23) {
+      deleteWord(&list);
     } else if (ch == -32 || ch == 224) {
-      // PHÍM ĐẶC BIỆT (Mũi tên): Nó trả về 2 byte. Byte đầu là -32 hoặc 224.
-      // Phải gọi _getch() thêm 1 lần nữa để lấy mã thật.
       char arrow = _getch();
-      // TODO: Bắt mũi tên Lên (72), Xuống (80), Trái (75), Phải (77)
       switch (arrow) {
       case 72:
         moveCursorUp(&list);

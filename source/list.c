@@ -205,3 +205,12 @@ void moveCursorDown(EditorList *list) {
     moveCursorRight(list);
   }
 }
+
+void deleteWord(EditorList *list) {
+  while (list->cursor != NULL && list->cursor->data == ' ') {
+    deleteChar(list);
+  }
+  while (list->cursor != NULL && list->cursor->data != ' ') {
+    deleteChar(list);
+  }
+}

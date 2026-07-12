@@ -23,3 +23,4 @@ void destroyList(EditorList *list);
 int getColumn(EditorList *list);
 void moveCursorUp(EditorList *list);
 void moveCursorDown(EditorList *list);
+void deleteWord(EditorList *list);
