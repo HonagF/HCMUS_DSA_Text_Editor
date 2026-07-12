@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -g
-TARGET = TestList.exe
-SRCS = list.c test_list.c
+TARGET = Editor.exe
+SRCS = list.c main.c
 
 all: $(TARGET)
 
