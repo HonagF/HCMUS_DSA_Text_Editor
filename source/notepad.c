@@ -18,11 +18,13 @@ int main(int argc, char **argv) {
     // cung bộ nhớ
     EditorState *state = malloc(sizeof(EditorState));
     //state->undo_stack_top = NULL;   
-    state->dictionary_root = NULL;  // khởi tạo cho auto
+    state->dictionary_root = create_node();  // khởi tạo cho auto
+    load_txt(state->dictionary_root, "../data/google-10000-english-no-swears.txt");
 
+    
     app = gtk_application_new("org.gtk.dsa.editor", G_APPLICATION_DEFAULT_FLAGS);
      
-    g_signal_connect(app, "activate", G_CALLBACK(activate), state);// địa chỉ gửi,điều kiện bật,gọi hàm, thông tin cần gửi
+    g_signal_connect(app, "activate", G_CALLBACK(activate), state);// địa chỉ gửi,tên tín hiệu ,gọi hàm, thông tin cần gửi
     
     status = g_application_run(G_APPLICATION(app), argc, argv);// lấy thong tin khi chạy ứng dụng
     
