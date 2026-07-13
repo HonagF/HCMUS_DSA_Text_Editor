@@ -15,6 +15,7 @@ typedef struct TrieNode {
 TrieNode *create_node();
 
 void trie_insert(TrieNode* root, const char* word);
+void sanitize(const char *in, char *out);
 int suggest(TrieNode* root, const char* prefix, char results[MAX_SUGGESTIONS][MAX_WORD_LEN]);
 void load_txt(TrieNode* root, const char* filename);
 

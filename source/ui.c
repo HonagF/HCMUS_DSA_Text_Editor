@@ -15,13 +15,16 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller,
         // add chương trình vào mà dự đoán
         
         // 1. Create a 2D array to hold the suggestions the Trie finds
-        char answers[MAX_SUGGESTIONS][MAX_WORD_LEN];
+        char out[MAX_SUGGESTIONS][MAX_WORD_LEN];
         
-        // 2. Convert the single typed key into a C-string (prefix)
-        char typed_char = (char)keyval;
-        char prefix[2] = {typed_char, '\0'}; 
+        char in[MAX_WORD_LEN] = {0};
+
+        char clean[MAX_WORD_LEN] = {0};
+
+        sanitize(in,clean);
+
         
-        suggest(state->dictionary_root, prefix, answers);
+        suggest(state->dictionary_root, clean, out);
         return FALSE; // trả false để hiển thị
     }
 
@@ -33,7 +36,7 @@ void setup_ui(EditorState *state, GtkApplication *app) {
 
     GtkWidget *window = gtk_application_window_new(app);//gọi biến cửa sổ
 
-    gtk_window_set_title (GTK_WINDOW (window), "NiggerPad"); // đặt tên tiêu đề ngu!
+    gtk_window_set_title (GTK_WINDOW (window), "Pad"); // đặt tên tiêu đề ngu!
     gtk_window_set_default_size (GTK_WINDOW (window), 800, 600); // kích thước window
     
     
