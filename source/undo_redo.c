@@ -1,8 +1,6 @@
 #include "undo_redo.h"
 #include <stdlib.h>
 
-/* ============ Stack (linked list) ============ */
-
 void initStack(CommandStack *stack) {
   stack->top = NULL;
   stack->size = 0;
@@ -39,16 +37,12 @@ void clearStack(CommandStack *stack) {
   stack->size = 0;
 }
 
-/* ============ Helper: đưa cursor về đúng vị trí index ============ */
-
 static void moveCursorToIndex(EditorList *list, int target) {
   while (list->index_cursor < target)
     moveCursorRight(list);
   while (list->index_cursor > target)
     moveCursorLeft(list);
 }
-
-/* ============ Manager ============ */
 
 void initManager(UndoRedoManager *mgr) {
   initStack(&mgr->undoStack);
@@ -62,8 +56,6 @@ void destroyManager(UndoRedoManager *mgr) {
 
 int canUndo(UndoRedoManager *mgr) { return !isEmptyStack(&mgr->undoStack); }
 int canRedo(UndoRedoManager *mgr) { return !isEmptyStack(&mgr->redoStack); }
-
-/* ============ Record: thực thi + lưu Command ============ */
 
 void recordInsert(UndoRedoManager *mgr, EditorList *list, char c) {
   int position = list->index_cursor;
@@ -116,8 +108,6 @@ void recordDeleteRight(UndoRedoManager *mgr, EditorList *list) {
   push(&mgr->undoStack, cmd);
   clearStack(&mgr->redoStack);
 }
-
-/* ============ Undo / Redo ============ */
 
 void undo(UndoRedoManager *mgr, EditorList *list) {
   if (isEmptyStack(&mgr->undoStack)) return;
