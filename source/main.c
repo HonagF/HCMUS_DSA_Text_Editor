@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 void printListWithCursor(EditorList *list) {
   if (list->cursor == NULL)
     printf("|");
@@ -16,13 +15,42 @@ void printListWithCursor(EditorList *list) {
   printf("\n====================\n");
 }
 
+void printSuggestions(EditorList *list, TrieNode *dictRoot) {
+  char prefix[256] = "";
+  int i = 0;
+
+  Node *p = list->cursor;
+  while (p != NULL && p->data != '\n' && p->data != ' ') {
+    p = p->prev;
+  }
+  Node *startNode = (p == NULL) ? list->head : p->next;
+  while (startNode != NULL && startNode != list->cursor->next) {
+    prefix[i] = startNode->data;
+    startNode = startNode->next;
+    i++;
+  }
+  prefix[i] = '\0';
+  char results[10][256];
+  int count = suggest(dictRoot, prefix, results);
+
+  printf("\n Goi y (Bam TAB de chon tu 1): \n");
+  for (int i = 0; i < count; i++) {
+    printf("%d. %s\n", i + 1, results[i]);
+  }
+  printf("\n");
+}
+
 int main() {
   EditorList list;
   initList(&list);
+  TrieNode *dictRoot = create_node();
+
+  load_txt(dictRoot, "../data/google-10000-english-no-swears.txt");
 
   while (1) {
     system("cls");
     printListWithCursor(&list);
+    printSuggestions(&list, dictRoot);
 
     char ch = _getch();
 
