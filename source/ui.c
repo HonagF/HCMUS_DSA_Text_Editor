@@ -1,6 +1,84 @@
-#include "ui.h" // Always include its own header
+#include "ui.h" 
+#include "list.h"
 #include "autocomplete.h"
 #include <gdk/gdk.h> 
+#include<string.h>
+static char* get_rec_text_buff(GtkTextBuffer *buffer) {
+    GtkTextTagTable *tag_table = gtk_text_buffer_get_tag_table(buffer);
+    GtkTextTag *ghost_tag = gtk_text_tag_table_lookup(tag_table, "ghost_text");
+    if (ghost_tag == NULL) return NULL; // Không có rec tồn tại
+    GtkTextIter start, end;
+    gtk_text_buffer_get_start_iter(buffer, &start); // Bắt đầu tìm từ đầu văn bản
+    // Nhảy con trỏ tới vị trí BẮT ĐẦU của đoạn chữ xám
+    if (gtk_text_iter_forward_to_tag_toggle(&start, ghost_tag)) {
+        end = start;
+        // Nhảy con trỏ tới vị trí KẾT THÚC của đoạn chữ xám
+        gtk_text_iter_forward_to_tag_toggle(&end, ghost_tag);
+        // Trích xuất chữ và trả về (Lưu ý: GTK sẽ cấp phát bộ nhớ cho chuỗi này)
+        return gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
+    }
+    return NULL;
+}
+
+// Hàm tạm thời duyệt Danh sách liên kết và gom thành một chuỗi ký tự
+static char* get_text_from_list(EditorList *list) {
+    // Nếu danh sách rỗng, trả về một chuỗi rỗng để GTK không in ra rác
+    if (list == NULL || list->size == 0) {
+        char *empty_str = g_malloc(1); // Dùng g_malloc của GTK
+        empty_str[0] = '\0';
+        return empty_str;
+    }
+
+    // Cấp phát bộ nhớ: Kích thước của chuỗi bằng số lượng node + 1 ký tự kết thúc '\0'
+    char *full_text = g_malloc(list->size + 1);
+    int i = 0;
+    
+    // Duyệt từ Node đầu tiên (head) đến cuối danh sách
+    Node *current = list->head;
+    while (current != NULL) {
+        full_text[i] = current->data; // Lấy ký tự từ node
+        current = current->next;      // Nhảy sang node tiếp theo
+        i++;
+    }
+    
+    // Đóng chuỗi lại chuẩn C
+    full_text[i] = '\0';
+    
+    return full_text;
+}
+
+// Hàm này dò ngược từ vị trí con trỏ hiện tại để lấy từ đang gõ dở
+static char* get_current_word_from_list(EditorList *list) {
+    // Nếu danh sách rỗng hoặc con trỏ không trỏ vào đâu, trả về NULL
+    if (list == NULL || list->cursor == NULL) return NULL;
+    
+    int len = 0;
+    Node *temp = list->cursor;
+    
+    // BƯỚC 1: Đếm độ dài của từ
+    // Đi lùi (temp->prev) cho đến khi gặp khoảng trắng, xuống dòng hoặc chạm đầu list
+    while (temp != NULL && temp->data != ' ' && temp->data != '\n') {
+        len++;
+        temp = temp->prev;
+    }
+    
+    // Nếu độ dài = 0 (tức là con trỏ đang đứng ngay tại khoảng trắng), không có từ nào để auto-complete
+    if (len == 0) return NULL;
+    
+    // BƯỚC 2: Cấp phát bộ nhớ cho chuỗi
+    char *word = g_malloc(len + 1); // Cấp phát thêm 1 byte cho ký tự kết thúc chuỗi '\0'
+    word[len] = '\0';
+    
+    // BƯỚC 3: Điền các ký tự vào chuỗi
+    // Vì ta đang đi lùi từ đuôi của từ, ta phải điền vào mảng từ vị trí cuối lên vị trí đầu (len - 1 về 0)
+    temp = list->cursor;
+    for (int i = len - 1; i >= 0; i--) {
+        word[i] = temp->data;
+        temp = temp->prev;
+    }
+    
+    return word; // Trả về chuỗi chứa từ hiện tại
+}
 
 static gboolean on_key_pressed(GtkEventControllerKey *controller,
                                guint keyval,
@@ -9,95 +87,74 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller,
                                gpointer user_data) 
 {
     EditorState *state = (EditorState *)user_data; 
-    if (keyval == GDK_KEY_Tab) {
-        GtkTextIter start_bound, end_bound;
-        gtk_text_buffer_get_bounds(state->buffer, &start_bound, &end_bound);
-    
-        // Remove the gray tag, making the text permanent and normal
-        gtk_text_buffer_remove_tag_by_name(state->buffer, "ghost_text", &start_bound, &end_bound);
-    
-        // Move the cursor to the end of the accepted word
-        gtk_text_buffer_place_cursor(state->buffer, &end_bound);
-    
-        return TRUE; // Stop the Tab key from actually typing a tab space
+    gboolean handled = FALSE;
+
+    if(keyval == GDK_KEY_BackSpace){
+        deleteChar(state->list);
+        handled = TRUE;
     }
-
-    GtkTextTagTable *tag_table = gtk_text_buffer_get_tag_table(state->buffer);
-    GtkTextTag *ghost_tag = gtk_text_tag_table_lookup(tag_table, "ghost_text");
-
-    if (ghost_tag != NULL) {
-        GtkTextIter iter;
-        gtk_text_buffer_get_start_iter(state->buffer, &iter);
-    
-    // Hunt down the start of the gray text
-        while (gtk_text_iter_forward_to_tag_toggle(&iter, ghost_tag)) {
-            GtkTextIter del_start = iter;
-        
-            // Find the end of the gray text
-            gtk_text_iter_forward_to_tag_toggle(&iter, ghost_tag); 
-        
-            // Delete it from the screen
-            gtk_text_buffer_delete(state->buffer, &del_start, &iter);
-        
-            // The buffer changed, so we must reset our search iterator
-            gtk_text_buffer_get_start_iter(state->buffer, &iter);
-        }
+    else if(keyval == GDK_KEY_Left){
+        moveCursorLeft(state->list);
+        handled = TRUE;
+    }
+    else if(keyval == GDK_KEY_Right){
+        moveCursorRight(state->list);
+        handled = TRUE;
+    }
+    else if(keyval >= GDK_KEY_space && keyval <= GDK_KEY_asciitilde){
+        insertChar(state->list,(char)keyval);
+        handled = TRUE;
+    }
+    else if(keyval == GDK_KEY_Down){
+        moveCursorDown(state->list);
+        handled = TRUE;
+    }
+    else if(keyval == GDK_KEY_Up){
+        moveCursorUp(state->list);
+        handled = TRUE;
+    }
+    else if (keyval == GDK_KEY_Tab) {
+        char *ghost= get_rec_text_buff(state->buffer);
+        if(ghost!=NULL){
+            for(int i =0;ghost[i]!='\0';i++)insertChar(state->list,ghost[i]);
+            g_free(ghost);
+            handled = TRUE;
+        } else handled = TRUE;
     }
 
     //kiểm tra đánh thường
-    if (keyval >= GDK_KEY_a && keyval <= GDK_KEY_z) {
-        // add chương trình vào mà dự đoán
-        
-        // 1. Create a 2D array to hold the suggestions the Trie finds
-        char out[MAX_SUGGESTIONS][MAX_WORD_LEN]={0};
-        char in[MAX_WORD_LEN] = {0};
-        char clean[MAX_WORD_LEN] = {0};
-        
-        GtkTextIter iter, start;
-        gtk_text_buffer_get_iter_at_mark(state->buffer, &iter, gtk_text_buffer_get_insert(state->buffer));
-        start = iter;
+    if (handled) {
+        GtkTextIter start, end;
+        gtk_text_buffer_get_bounds(state->buffer, &start, &end);
+        gtk_text_buffer_delete(state->buffer, &start, &end);
+        char *full_text = get_text_from_list(state->list);
 
-        while (gtk_text_iter_backward_char(&start)) {
-        gunichar c = gtk_text_iter_get_char(&start);
-            if (g_unichar_isspace(c)) {
-            gtk_text_iter_forward_char(&start); // Move forward one to exclude the space itself
-            break;
-            }
-        }   
-
-        // 4. Extract the text already on the screen (e.g., "ap")
-        char *existing_text = gtk_text_buffer_get_text(state->buffer, &start, &iter, FALSE);
-
-        // 5. Combine the existing text with the new key pressed (e.g., "ap" + "p" = "app")
-        if (existing_text != NULL) {
-            snprintf(in, MAX_WORD_LEN, "%s%c", existing_text, (char)keyval);
-            g_free(existing_text); // Always free memory provided by GTK!
-        }else {
-            // If there was no existing text, the prefix is just the key pressed
-            snprintf(in, MAX_WORD_LEN, "%c", (char)keyval);
+        // c. Đổ toàn bộ văn bản đó lên GTK
+        if (full_text != NULL) {
+            gtk_text_buffer_set_text(state->buffer, full_text, -1);
+            g_free(full_text); // free bộ nhớ nếu hàm dll_get_full_text có cấp phát động!
         }
+        //////////////////////////////////////////////
+        char *cur=get_current_word_from_list(state->list);
+        if(cur!=NULL && strlen(cur)>0){
+            char out[MAX_SUGGESTIONS][MAX_WORD_LEN]={0};
+            char clean[MAX_WORD_LEN] = {0};           
+            sanitize(cur,clean);
+            // 2. Capture the actual number of suggestions found
+            int num_suggestions = suggest(state->dictionary_root, clean, out);
 
-        sanitize(in,clean);
-
-        // 2. Capture the actual number of suggestions found
-        int num_suggestions = suggest(state->dictionary_root, clean, out);
-
-        // 3. Only proceed if the Trie actually found a matching word
-        if (num_suggestions > 0) {
+            // 3. Only proceed if the Trie actually found a matching word
+            if (num_suggestions > 0) {
     
-            // a. Get the cursor position
+            // Get the cursor position
             GtkTextIter insert_iter;
             gtk_text_buffer_get_iter_at_mark(state->buffer, &insert_iter, gtk_text_buffer_get_insert(state->buffer));
 
-            // b. CRITICAL FIX: Manually insert the key the user JUST typed first!
-            char typed_str[2] = {(char)keyval, '\0'};
-            gtk_text_buffer_insert(state->buffer, &insert_iter, typed_str, -1);
-
-            // c. Calculate the ghost text
+            //  Calculate the ghost text
             int input_length = strlen(clean);
             const char *remainder = out[0] + input_length; 
 
-            // d. Insert the text first (this moves insert_iter to the very end of the word)
+            // Insert the text first (this moves insert_iter to the very end of the word)
             gtk_text_buffer_insert(state->buffer, &insert_iter, remainder, -1);
 
             // CRITICAL FIX: Recalculate start_grey by moving backwards!
@@ -106,16 +163,14 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller,
 
             // Now apply the tag using the fresh, valid iterators
             gtk_text_buffer_apply_tag_by_name(state->buffer, "ghost_text", &start_grey, &insert_iter);
-
-            // e. CRITICAL FIX: Return TRUE so GTK doesn't type the key a second time!
-            return TRUE; 
+            } 
+            g_free(cur);
         }
-        return FALSE; // trả false để hiển thị
+        return TRUE; // trả false để hiển thị
     }
     return FALSE; // cho hiển thị các kí tự ko quan tâm
 }
 
-// Here is the actual code that builds the GUI
 void setup_ui(EditorState *state, GtkApplication *app) {
 
     GtkWidget *window = gtk_application_window_new(app);//gọi biến cửa sổ
