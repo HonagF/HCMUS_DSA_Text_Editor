@@ -2,7 +2,7 @@
 
 Phần đảm nhiệm: chức năng Undo/Redo không giới hạn cho công cụ soạn thảo văn bản mini (đồ án DSA), dùng **Command Pattern** trên nền **2 stack (linked list)**.
 
-File liên quan: `undoredo.h`, `undoredo.c`, `test_undoredo.c`. Phụ thuộc `list.h`/`list.c` (nhánh `linked-list`).
+File liên quan: `undo_redo.h`, `undo_redo.c`, `test_undoredo.c`. Phụ thuộc `list.h`/`list.c` (nhánh `linked-list`).
 
 ---
 
