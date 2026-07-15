@@ -1,200 +1,276 @@
-#include "ui.h" 
-#include "list.h"
+#include "ui.h"                 // Always include its own header
 #include "autocomplete.h"
-#include <gdk/gdk.h> 
-#include<string.h>
-static char* get_rec_text_buff(GtkTextBuffer *buffer) {
-    GtkTextTagTable *tag_table = gtk_text_buffer_get_tag_table(buffer);
-    GtkTextTag *ghost_tag = gtk_text_tag_table_lookup(tag_table, "ghost_text");
-    if (ghost_tag == NULL) return NULL; // Không có rec tồn tại
-    GtkTextIter start, end;
-    gtk_text_buffer_get_start_iter(buffer, &start); // Bắt đầu tìm từ đầu văn bản
-    // Nhảy con trỏ tới vị trí BẮT ĐẦU của đoạn chữ xám
-    if (gtk_text_iter_forward_to_tag_toggle(&start, ghost_tag)) {
-        end = start;
-        // Nhảy con trỏ tới vị trí KẾT THÚC của đoạn chữ xám
-        gtk_text_iter_forward_to_tag_toggle(&end, ghost_tag);
-        // Trích xuất chữ và trả về (Lưu ý: GTK sẽ cấp phát bộ nhớ cho chuỗi này)
-        return gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
-    }
-    return NULL;
+#include <gdk/gdk.h>
+#include <string.h>
+#include <gtk/gtk.h>
+
+// -------------------- Callbacks cho các nút chức năng --------------------
+static void on_undo_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    // TODO: Gọi hàm undo (sẽ thêm sau)
+    g_print("Undo clicked\n");
 }
 
-// Hàm tạm thời duyệt Danh sách liên kết và gom thành một chuỗi ký tự
-static char* get_text_from_list(EditorList *list) {
-    // Nếu danh sách rỗng, trả về một chuỗi rỗng để GTK không in ra rác
-    if (list == NULL || list->size == 0) {
-        char *empty_str = g_malloc(1); // Dùng g_malloc của GTK
-        empty_str[0] = '\0';
-        return empty_str;
-    }
-
-    // Cấp phát bộ nhớ: Kích thước của chuỗi bằng số lượng node + 1 ký tự kết thúc '\0'
-    char *full_text = g_malloc(list->size + 1);
-    int i = 0;
-    
-    // Duyệt từ Node đầu tiên (head) đến cuối danh sách
-    Node *current = list->head;
-    while (current != NULL) {
-        full_text[i] = current->data; // Lấy ký tự từ node
-        current = current->next;      // Nhảy sang node tiếp theo
-        i++;
-    }
-    
-    // Đóng chuỗi lại chuẩn C
-    full_text[i] = '\0';
-    
-    return full_text;
+static void on_redo_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    // TODO: Gọi hàm redo
+    g_print("Redo clicked\n");
 }
 
-// Hàm này dò ngược từ vị trí con trỏ hiện tại để lấy từ đang gõ dở
-static char* get_current_word_from_list(EditorList *list) {
-    // Nếu danh sách rỗng hoặc con trỏ không trỏ vào đâu, trả về NULL
-    if (list == NULL || list->cursor == NULL) return NULL;
-    
-    int len = 0;
-    Node *temp = list->cursor;
-    
-    // BƯỚC 1: Đếm độ dài của từ
-    // Đi lùi (temp->prev) cho đến khi gặp khoảng trắng, xuống dòng hoặc chạm đầu list
-    while (temp != NULL && temp->data != ' ' && temp->data != '\n') {
-        len++;
-        temp = temp->prev;
-    }
-    
-    // Nếu độ dài = 0 (tức là con trỏ đang đứng ngay tại khoảng trắng), không có từ nào để auto-complete
-    if (len == 0) return NULL;
-    
-    // BƯỚC 2: Cấp phát bộ nhớ cho chuỗi
-    char *word = g_malloc(len + 1); // Cấp phát thêm 1 byte cho ký tự kết thúc chuỗi '\0'
-    word[len] = '\0';
-    
-    // BƯỚC 3: Điền các ký tự vào chuỗi
-    // Vì ta đang đi lùi từ đuôi của từ, ta phải điền vào mảng từ vị trí cuối lên vị trí đầu (len - 1 về 0)
-    temp = list->cursor;
-    for (int i = len - 1; i >= 0; i--) {
-        word[i] = temp->data;
-        temp = temp->prev;
-    }
-    
-    return word; // Trả về chuỗi chứa từ hiện tại
+static void on_clear_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    gtk_text_buffer_set_text(state->buffer, "", -1);
 }
 
+// Các hàm Cut/Copy/Paste sử dụng clipboard của GTK4
+static void on_cut_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    GdkClipboard *clip = gdk_display_get_clipboard(gdk_display_get_default());
+    gtk_text_buffer_cut_clipboard(state->buffer, clip, TRUE);
+}
+
+static void on_copy_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    GdkClipboard *clip = gdk_display_get_clipboard(gdk_display_get_default());
+    gtk_text_buffer_copy_clipboard(state->buffer, clip);
+}
+
+static void on_paste_clicked(GtkButton *button, gpointer user_data) {
+    EditorState *state = (EditorState *)user_data;
+    GdkClipboard *clip = gdk_display_get_clipboard(gdk_display_get_default());
+    gtk_text_buffer_paste_clipboard(state->buffer, clip, NULL, TRUE);
+}
+
+// -------------------- Xử lý phím (đã thêm Ctrl+Z và Ctrl+Y) --------------------
 static gboolean on_key_pressed(GtkEventControllerKey *controller,
                                guint keyval,
                                guint keycode,
                                GdkModifierType modifiers,
                                gpointer user_data) 
 {
-    EditorState *state = (EditorState *)user_data; 
-    gboolean handled = FALSE;
+    EditorState *state = (EditorState *)user_data;
 
-    if(keyval == GDK_KEY_BackSpace){
-        deleteChar(state->list);
-        handled = TRUE;
+    // Phím tắt Undo/Redo
+    if ((modifiers & GDK_CONTROL_MASK) && keyval == GDK_KEY_z) {
+        on_undo_clicked(NULL, state);
+        return TRUE;
     }
-    else if(keyval == GDK_KEY_Left){
-        moveCursorLeft(state->list);
-        handled = TRUE;
-    }
-    else if(keyval == GDK_KEY_Right){
-        moveCursorRight(state->list);
-        handled = TRUE;
-    }
-    else if(keyval >= GDK_KEY_space && keyval <= GDK_KEY_asciitilde){
-        insertChar(state->list,(char)keyval);
-        handled = TRUE;
-    }
-    else if(keyval == GDK_KEY_Down){
-        moveCursorDown(state->list);
-        handled = TRUE;
-    }
-    else if(keyval == GDK_KEY_Up){
-        moveCursorUp(state->list);
-        handled = TRUE;
-    }
-    else if (keyval == GDK_KEY_Tab) {
-        char *ghost= get_rec_text_buff(state->buffer);
-        if(ghost!=NULL){
-            for(int i =0;ghost[i]!='\0';i++)insertChar(state->list,ghost[i]);
-            g_free(ghost);
-            handled = TRUE;
-        } else handled = TRUE;
+    if ((modifiers & GDK_CONTROL_MASK) && keyval == GDK_KEY_y) {
+        on_redo_clicked(NULL, state);
+        return TRUE;
     }
 
-    //kiểm tra đánh thường
-    if (handled) {
-        GtkTextIter start, end;
-        gtk_text_buffer_get_bounds(state->buffer, &start, &end);
-        gtk_text_buffer_delete(state->buffer, &start, &end);
-        char *full_text = get_text_from_list(state->list);
+    if (keyval == GDK_KEY_Tab) {
+        GtkTextIter start_bound, end_bound;
+        gtk_text_buffer_get_bounds(state->buffer, &start_bound, &end_bound);
+        gtk_text_buffer_remove_tag_by_name(state->buffer, "ghost_text", &start_bound, &end_bound);
+        gtk_text_buffer_place_cursor(state->buffer, &end_bound);
+        return TRUE;
+    }
 
-        // c. Đổ toàn bộ văn bản đó lên GTK
-        if (full_text != NULL) {
-            gtk_text_buffer_set_text(state->buffer, full_text, -1);
-            g_free(full_text); // free bộ nhớ nếu hàm dll_get_full_text có cấp phát động!
+    // Xóa ghost_text nếu có
+    GtkTextTagTable *tag_table = gtk_text_buffer_get_tag_table(state->buffer);
+    GtkTextTag *ghost_tag = gtk_text_tag_table_lookup(tag_table, "ghost_text");
+    if (ghost_tag != NULL) {
+        GtkTextIter iter;
+        gtk_text_buffer_get_start_iter(state->buffer, &iter);
+        while (gtk_text_iter_forward_to_tag_toggle(&iter, ghost_tag)) {
+            GtkTextIter del_start = iter;
+            gtk_text_iter_forward_to_tag_toggle(&iter, ghost_tag); 
+            gtk_text_buffer_delete(state->buffer, &del_start, &iter);
+            gtk_text_buffer_get_start_iter(state->buffer, &iter);
         }
-        //////////////////////////////////////////////
-        char *cur=get_current_word_from_list(state->list);
-        if(cur!=NULL && strlen(cur)>0){
-            char out[MAX_SUGGESTIONS][MAX_WORD_LEN]={0};
-            char clean[MAX_WORD_LEN] = {0};           
-            sanitize(cur,clean);
-            // 2. Capture the actual number of suggestions found
-            int num_suggestions = suggest(state->dictionary_root, clean, out);
+    }
 
-            // 3. Only proceed if the Trie actually found a matching word
-            if (num_suggestions > 0) {
-    
-            // Get the cursor position
+    // Tự động gợi ý khi gõ chữ cái
+    if (keyval >= GDK_KEY_a && keyval <= GDK_KEY_z) {
+        char out[MAX_SUGGESTIONS][MAX_WORD_LEN] = {0};
+        char in[MAX_WORD_LEN] = {0};
+        char clean[MAX_WORD_LEN] = {0};
+        
+        GtkTextIter iter, start;
+        gtk_text_buffer_get_iter_at_mark(state->buffer, &iter, gtk_text_buffer_get_insert(state->buffer));
+        start = iter;
+        while (gtk_text_iter_backward_char(&start)) {
+            gunichar c = gtk_text_iter_get_char(&start);
+            if (g_unichar_isspace(c)) {
+                gtk_text_iter_forward_char(&start);
+                break;
+            }
+        }   
+
+        char *existing_text = gtk_text_buffer_get_text(state->buffer, &start, &iter, FALSE);
+        if (existing_text != NULL) {
+            snprintf(in, MAX_WORD_LEN, "%s%c", existing_text, (char)keyval);
+            g_free(existing_text);
+        } else {
+            snprintf(in, MAX_WORD_LEN, "%c", (char)keyval);
+        }
+        sanitize(in, clean);
+
+        int num_suggestions = suggest(state->dictionary_root, clean, out);
+        if (num_suggestions > 0) {
             GtkTextIter insert_iter;
             gtk_text_buffer_get_iter_at_mark(state->buffer, &insert_iter, gtk_text_buffer_get_insert(state->buffer));
+            char typed_str[2] = {(char)keyval, '\0'};
+            gtk_text_buffer_insert(state->buffer, &insert_iter, typed_str, -1);
 
-            //  Calculate the ghost text
             int input_length = strlen(clean);
             const char *remainder = out[0] + input_length; 
-
-            // Insert the text first (this moves insert_iter to the very end of the word)
             gtk_text_buffer_insert(state->buffer, &insert_iter, remainder, -1);
 
-            // CRITICAL FIX: Recalculate start_grey by moving backwards!
             GtkTextIter start_grey = insert_iter;
             gtk_text_iter_backward_chars(&start_grey, strlen(remainder));
-
-            // Now apply the tag using the fresh, valid iterators
             gtk_text_buffer_apply_tag_by_name(state->buffer, "ghost_text", &start_grey, &insert_iter);
-            } 
-            g_free(cur);
+            return TRUE; 
         }
-        return TRUE; // trả false để hiển thị
+        return FALSE;
     }
-    return FALSE; // cho hiển thị các kí tự ko quan tâm
+    return FALSE;
 }
 
+// -------------------- Áp dụng CSS (dùng load_from_string) --------------------
+static void apply_css(GtkWidget *widget) {
+    GtkCssProvider *provider = gtk_css_provider_new();
+    const char *css =
+        "window { background-color: #1e1e1e; }"
+        "textview { background-color: #2d2d30; color: #ffffff; font-family: 'Monospace', 'Courier New', monospace; font-size: 14pt; padding: 12px; }"
+        "textview text { background-color: #2d2d30; color: #ffffff; }"
+        "scrollbar { background-color: #1e1e1e; }"
+        "scrollbar slider { background-color: #4a4a4a; border-radius: 10px; border: none; min-width: 12px; min-height: 12px; }"
+        "scrollbar slider:hover { background-color: #6a6a6a; }"
+        /* Toolbar styles */
+        ".toolbar { background-color: #252526; padding: 4px 8px; border-bottom: 1px solid #3a3a3a; }"
+        ".toolbar button {"
+        "  background-color: #3a3a3a;"
+        "  color: #ffffff;"
+        "  border: 1px solid #555555;"
+        "  border-radius: 4px;"
+        "  padding: 6px 10px;"
+        "  margin: 2px;"
+        "  font-size: 12pt;"
+        "}"
+        ".toolbar button:hover {"
+        "  background-color: #5a5a5a;"
+        "  border-color: #888888;"
+        "}"
+        ".toolbar button:active {"
+        "  background-color: #2a2a2a;"
+        "  border-color: #aaaaaa;"
+        "}"
+        /* Style cho icon bên trong nút */
+        ".toolbar button image {"
+        "  color: #ffffff;"
+        "}"
+        ".toolbar button:hover image {"
+        "  color: #ffffff;"
+        "}"
+        ".toolbar button:active image {"
+        "  color: #aaaaaa;"
+        "}";
+    gtk_css_provider_load_from_string(provider, css);
+    gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+                                               GTK_STYLE_PROVIDER(provider),
+                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+}
+
+// -------------------- Xây dựng giao diện chính (có thanh công cụ) --------------------
 void setup_ui(EditorState *state, GtkApplication *app) {
+    GtkWidget *window = gtk_application_window_new(app);
+    gtk_window_set_title(GTK_WINDOW(window), "Pad");
+    gtk_window_set_default_size(GTK_WINDOW(window), 900, 700);
+    gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
 
-    GtkWidget *window = gtk_application_window_new(app);//gọi biến cửa sổ
+    apply_css(window);
 
-    gtk_window_set_title (GTK_WINDOW (window), "Pad"); // đặt tên tiêu đề ngu!
-    gtk_window_set_default_size (GTK_WINDOW (window), 800, 600); // kích thước window
-    
-    
-    GtkWidget *scrolled_window = gtk_scrolled_window_new();// tạo cửa sổ lướt đc
-    gtk_window_set_child (GTK_WINDOW (window), scrolled_window); //cho cửa sổ mới tạo làm con, đặt vào cửa sổ mẹ
-    
-    GtkWidget *text_view = gtk_text_view_new();// để điền kí tự
+    // ---- Tạo thanh công cụ ----
+    GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    // Thêm style class "toolbar" để CSS nhận diện
+    gtk_widget_add_css_class(toolbar, "toolbar");
+    gtk_widget_set_halign(toolbar, GTK_ALIGN_FILL);
+    gtk_widget_set_margin_start(toolbar, 0);
+    gtk_widget_set_margin_end(toolbar, 0);
+    gtk_widget_set_margin_top(toolbar, 0);
+    gtk_widget_set_margin_bottom(toolbar, 0);
 
-    // liên kết ô điền với struct
-    state->buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view));// tương tự với lướt
-    gtk_text_buffer_create_tag(state->buffer, "ghost_text","foreground", "#888888", NULL);
+    // Nút Undo
+    GtkWidget *undo_btn = gtk_button_new_from_icon_name("edit-undo-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(undo_btn), FALSE);
+    gtk_widget_set_tooltip_text(undo_btn, "Undo (Ctrl+Z)");
+    g_signal_connect(undo_btn, "clicked", G_CALLBACK(on_undo_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), undo_btn);
 
-    //tạo bộ dò phím
+    // Nút Redo
+    GtkWidget *redo_btn = gtk_button_new_from_icon_name("edit-redo-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(redo_btn), FALSE);
+    gtk_widget_set_tooltip_text(redo_btn, "Redo (Ctrl+Y)");
+    g_signal_connect(redo_btn, "clicked", G_CALLBACK(on_redo_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), redo_btn);
+
+    // Separator
+    GtkWidget *sep1 = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    gtk_box_append(GTK_BOX(toolbar), sep1);
+
+    // Nút Cut
+    GtkWidget *cut_btn = gtk_button_new_from_icon_name("edit-cut-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(cut_btn), FALSE);
+    gtk_widget_set_tooltip_text(cut_btn, "Cut");
+    g_signal_connect(cut_btn, "clicked", G_CALLBACK(on_cut_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), cut_btn);
+
+    // Nút Copy
+    GtkWidget *copy_btn = gtk_button_new_from_icon_name("edit-copy-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(copy_btn), FALSE);
+    gtk_widget_set_tooltip_text(copy_btn, "Copy");
+    g_signal_connect(copy_btn, "clicked", G_CALLBACK(on_copy_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), copy_btn);
+
+    // Nút Paste
+    GtkWidget *paste_btn = gtk_button_new_from_icon_name("edit-paste-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(paste_btn), FALSE);
+    gtk_widget_set_tooltip_text(paste_btn, "Paste");
+    g_signal_connect(paste_btn, "clicked", G_CALLBACK(on_paste_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), paste_btn);
+
+    // Separator
+    GtkWidget *sep2 = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    gtk_box_append(GTK_BOX(toolbar), sep2);
+
+    // Nút Clear
+    GtkWidget *clear_btn = gtk_button_new_from_icon_name("edit-delete-symbolic");
+    gtk_button_set_has_frame(GTK_BUTTON(clear_btn), FALSE);
+    gtk_widget_set_tooltip_text(clear_btn, "Clear all text");
+    g_signal_connect(clear_btn, "clicked", G_CALLBACK(on_clear_clicked), state);
+    gtk_box_append(GTK_BOX(toolbar), clear_btn);
+
+    // ---- Tạo ScrolledWindow và TextView ----
+    GtkWidget *scrolled_window = gtk_scrolled_window_new();
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(scrolled_window), TRUE);
+    gtk_scrolled_window_set_propagate_natural_width(GTK_SCROLLED_WINDOW(scrolled_window), TRUE);
+
+    GtkWidget *text_view = gtk_text_view_new();
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(text_view), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(text_view), 15);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(text_view), 15);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(text_view), TRUE);
+
+    state->buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view));
+    gtk_text_buffer_create_tag(state->buffer, "ghost_text", "foreground", "#888888", NULL);
+
     GtkEventController *key_ctrl = gtk_event_controller_key_new();
-
-    g_signal_connect(key_ctrl, "key-pressed", G_CALLBACK(on_key_pressed), state);//gửi thông tin tới hàm crtl phím
-
-    gtk_widget_add_controller(text_view, key_ctrl);//thêm kiểm tra vào ô điền
+    g_signal_connect(key_ctrl, "key-pressed", G_CALLBACK(on_key_pressed), state);
+    gtk_widget_add_controller(text_view, key_ctrl);
 
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled_window), text_view);
+
+    // ---- Bố trí tổng thể ----
+    GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_append(GTK_BOX(main_box), toolbar);
+    gtk_box_append(GTK_BOX(main_box), scrolled_window);
+    gtk_window_set_child(GTK_WINDOW(window), main_box);
+
     gtk_window_present(GTK_WINDOW(window));
 }
