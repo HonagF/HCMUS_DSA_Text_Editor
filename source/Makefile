@@ -6,6 +6,9 @@ LIBS = `pkg-config --libs gtk4`
 SRCS = $(wildcard *.c)
 # Define the output executable name
 TARGET = notepad
+CFLAGS = -Wall -g
+TARGET = Editor.exe
+SRCS = list.c main.c
 
 all: $(TARGET)
 
@@ -14,3 +17,7 @@ $(TARGET): $(SRCS)
 
 clean:
 	rm -f $(TARGET)
+	$(CC) $(CFLAGS) $(SRCS) -o $(TARGET)
+
+clean:
+	del $(TARGET) 
