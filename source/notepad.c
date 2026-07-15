@@ -3,6 +3,7 @@
 #include "api.h"
 #include "ui.h" // thư viện các thứ
 #include "autocomplete.h"
+#include "list.h"
 
 static void activate(GtkApplication *app, gpointer user_data) {
     // gửi thông tin về struct
@@ -20,7 +21,9 @@ int main(int argc, char **argv) {
     //state->undo_stack_top = NULL;   
     state->dictionary_root = create_node();  // khởi tạo cho auto
     load_txt(state->dictionary_root, "../data/google-10000-english-no-swears.txt");
-
+    
+    state->list = malloc(sizeof(EditorList));
+    initList(state->list);
     
     app = gtk_application_new("org.gtk.dsa.editor", G_APPLICATION_DEFAULT_FLAGS);
      

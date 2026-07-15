@@ -1,3 +1,7 @@
+#ifndef LIST_H
+#define LIST_H
+#include <gtk/gtk.h>
+
 typedef struct Node {
   char data;
   struct Node *next;
@@ -24,3 +28,5 @@ int getColumn(EditorList *list);
 void moveCursorUp(EditorList *list);
 void moveCursorDown(EditorList *list);
 void deleteWord(EditorList *list);
+
+#endif
