@@ -1,7 +1,9 @@
+#include "autocomplete.h"
 #include "list.h"
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 
 void printListWithCursor(EditorList *list) {
   if (list->cursor == NULL)
