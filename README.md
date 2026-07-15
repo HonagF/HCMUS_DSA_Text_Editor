@@ -79,7 +79,7 @@ Command node được **tái sử dụng**: khi `undo()` pop từ `undoStack`, n
 
 ---
 
-## 4. Test case (`test_undoredo.c`)
+## 4. Test case (`testfile.c`)
 
 Đã compile + chạy, **27/27 assertion pass**. Chạy bằng:
 ```powershell
