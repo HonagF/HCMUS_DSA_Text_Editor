@@ -1,14 +1,8 @@
 CC = gcc
-CFLAGS = `pkg-config --cflags gtk4` -g -Wall
-LIBS = `pkg-config --libs gtk4`
-
-# Find all .c files in the current directory
-SRCS = $(wildcard *.c)
-# Define the output executable name
-TARGET = notepad
-CFLAGS = -Wall -g
+CFLAGS = $(shell pkg-config --cflags gtk4) -g -Wall
+LIBS = $(shell pkg-config --libs gtk4)
+SRCS = notepad.c ui.c list.c autocomplete.c
 TARGET = Editor.exe
-SRCS = list.c main.c
 
 all: $(TARGET)
 
@@ -16,8 +10,4 @@ $(TARGET): $(SRCS)
 	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS) $(LIBS)
 
 clean:
-	rm -f $(TARGET)
-	$(CC) $(CFLAGS) $(SRCS) -o $(TARGET)
-
-clean:
-	del $(TARGET) 
+	del $(TARGET)

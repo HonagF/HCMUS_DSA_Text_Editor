@@ -13,6 +13,7 @@ typedef struct {
     //UndoNode *undo_stack_top;   
     TrieNode *dictionary_root;  // You handle the autocomplete
     EditorList *list;
+    int is_updating_gtk;
 } EditorState;
 
 #endif
