@@ -50,69 +50,85 @@ void insertChar(EditorList *list, char c) {
 void deleteChar(EditorList *list) {
   if (list->size == 0 || list->cursor == NULL)
     return;
-  Node *delNode = list->cursor;
-  Node *prevNode = delNode->prev;
-  Node *nextNode = delNode->next;
-  if (prevNode != NULL) {
-    prevNode->next = nextNode;
-  } else {
-    list->head = nextNode;
-  }
-  if (nextNode != NULL) {
-    nextNode->prev = prevNode;
-  } else {
-    list->tail = prevNode;
-  }
-  list->cursor = prevNode;
-  free(delNode);
-  list->size--;
-  list->index_cursor--;
+  do {
+    int is_continuation = ((list->cursor->data & 0xc0) == 0x80);
+
+    Node *delNode = list->cursor;
+    Node *prevNode = delNode->prev;
+    Node *nextNode = delNode->next;
+
+    if (prevNode != NULL) {
+      prevNode->next = nextNode;
+    } else {
+      list->head = nextNode;
+    }
+    if (nextNode != NULL) {
+      nextNode->prev = prevNode;
+    } else {
+      list->tail = prevNode;
+    }
+    list->cursor = prevNode;
+    free(delNode);
+    list->size--;
+    list->index_cursor--;
+    if (!is_continuation)
+      break;
+  } while (list->cursor != NULL);
 }
 
 void deleteRight(EditorList *list) {
   if (list->size == 0 || list->cursor == list->tail)
     return;
-  Node *delNode;
-  if (list->cursor == NULL)
-    delNode = list->head;
-  else
-    delNode = list->cursor->next;
-  if (delNode == NULL)
-    return;
+  do {
+    Node *delNode;
+    if (list->cursor == NULL)
+      delNode = list->head;
+    else
+      delNode = list->cursor->next;
+    if (delNode == NULL)
+      return;
 
-  Node *prevNode = delNode->prev;
-  Node *nextNode = delNode->next;
-  if (prevNode != NULL) {
-    prevNode->next = nextNode;
-  } else {
-    list->head = nextNode;
-  }
-  if (nextNode != NULL) {
-    nextNode->prev = prevNode;
-  } else {
-    list->tail = prevNode;
-  }
-  free(delNode);
-  list->size--;
+    Node *prevNode = delNode->prev;
+    Node *nextNode = delNode->next;
+
+    if (prevNode != NULL) {
+      prevNode->next = nextNode;
+    } else {
+      list->head = nextNode;
+    }
+    if (nextNode != NULL) {
+      nextNode->prev = prevNode;
+    } else {
+      list->tail = prevNode;
+    }
+    free(delNode);
+    list->size--;
+
+    if (nextNode == NULL || (nextNode->data & 0xC0) != 0x80)
+      break;
+  } while (1);
 }
 
 void moveCursorLeft(EditorList *list) {
   if (list->cursor == NULL)
     return;
-  list->cursor = list->cursor->prev;
-  list->index_cursor--;
+  do {
+    list->cursor = list->cursor->prev;
+    list->index_cursor--;
+  } while (list->cursor != NULL && (list->cursor->next->data & 0xc0) == 0x80);
 }
 
 void moveCursorRight(EditorList *list) {
   if (list->cursor == list->tail)
     return;
-  if (list->cursor == NULL) {
-    list->cursor = list->head;
+  do {
+    if (list->cursor == NULL)
+      list->cursor = list->head;
+    else
+      list->cursor = list->cursor->next;
     list->index_cursor++;
-    return;
-  }
-  list->cursor = list->cursor->next;
-  list->index_cursor++;
+  } while (list->cursor != list->tail && list->cursor->next != NULL &&
+           (list->cursor->next->data & 0xC0) == 0x80);
 }
 
 void destroyList(EditorList *list) {

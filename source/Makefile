@@ -1,12 +1,13 @@
 CC = gcc
-CFLAGS = -Wall -g
+CFLAGS = $(shell pkg-config --cflags gtk4) -g -Wall
+LIBS = $(shell pkg-config --libs gtk4)
+SRCS = notepad.c ui.c list.c autocomplete.c
 TARGET = Editor.exe
-SRCS = list.c main.c autocomplete.c
 
 all: $(TARGET)
 
 $(TARGET): $(SRCS)
-	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS)
+	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS) $(LIBS)
 
 clean:
 	del $(TARGET)
