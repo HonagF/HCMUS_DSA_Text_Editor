@@ -4,13 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-struct TrieNode *create_node() {
+struct TrieNode *create_node(char c) {
   struct TrieNode *node = (struct TrieNode *)malloc(sizeof(struct TrieNode));
+  node->data = c;
   node->is_end_of_word = 0;
-  for (int i = 0; i < 26; i++) {
-    node->children[i] = NULL;
-  }
+  node->child = NULL;
+  node->sibling = NULL;
   return node;
 }
 void find_words(struct TrieNode *node, char *current_word, int depth,
@@ -29,43 +28,40 @@ void find_words(struct TrieNode *node, char *current_word, int depth,
   }
 
   // Recursive Step: Check all 26 possible alphabetical children
-  for (int i = 0; i < 26; i++) {
-    if (node->children[i] != NULL) {
-      // Append this child's character to our running word buffer
-      current_word[depth] = 'a' + i;
-
-      // Plunge one level deeper into the tree
-      find_words(node->children[i], current_word, depth + 1, results,
-                 found_count);
-    }
+  TrieNode *child = node->child;
+  while (child != NULL) {
+    current_word[depth] = child->data;
+    find_words(child, current_word, depth + 1, results, found_count);
+    child = child->sibling;
   }
 }
 void trie_insert(TrieNode *root, const char *word) {
   struct TrieNode *current = root;
 
   for (int i = 0; word[i] != '\0'; i++) {
-    if (word[i] < 'a' || word[i] > 'z')
+    char c = word[i];
+    if (current->child == NULL) {
+      current->child = create_node(c);
+      current = current->child;
       continue;
-
-    int index = word[i] - 'a';
-    if (current->children[index] == NULL) {
-      current->children[index] = create_node();
     }
-    current = current->children[index];
+    TrieNode *temp = current->child;
+    while (temp != NULL) {
+      if (temp->data == c) {
+        current = temp;
+        break;
+      }
+      if (temp->sibling == NULL) {
+        temp->sibling = create_node(c);
+        current = temp->sibling;
+        break;
+      }
+      temp = temp->sibling;
+    }
   }
   current->is_end_of_word = 1;
 }
-void sanitize(const char *in, char *out) {
-  int j = 0;
-  for (int i = 0; in[i] != '\0'; i++) {
-    if (isalpha(in[i])) {
-      out[j] = tolower(in[i]);
-      j++;
-    }
-  }
-  out[j] = '\0';
-  return;
-}
+
 int suggest(struct TrieNode *root, const char *prefix,
             char results[MAX_SUGGESTIONS][MAX_WORD_LEN]) {
   if (root == NULL || prefix == NULL) {
@@ -77,13 +73,14 @@ int suggest(struct TrieNode *root, const char *prefix,
 
   // STEP 1: Navigate to the end of the prefix
   for (int i = 0; i < prefix_len; i++) {
-    int index = prefix[i] - 'a';
-
-    // If the path breaks before the prefix finishes, the word doesn't exist
-    if (current->children[index] == NULL) {
+    char c = prefix[i];
+    current = current->child;
+    while (current != NULL && current->data != c) {
+      current = current->sibling;
+    }
+    if (current == NULL) {
       return 0;
     }
-    current = current->children[index];
   }
 
   // STEP 2: Prepare variables for the recursive search
@@ -108,10 +105,9 @@ void load_txt(TrieNode *root, const char *filename) {
   char buffer[256];
   while (fgets(buffer, sizeof(buffer), fi)) {
     buffer[strcspn(buffer, "\r\n")] = '\0';
-    char clean[256];
-    sanitize(buffer, clean);
-    if (clean[0] != '\0')
-      trie_insert(root, clean);
+
+    if (buffer[0] != '\0')
+      trie_insert(root, buffer);
   }
   fclose(fi);
 }

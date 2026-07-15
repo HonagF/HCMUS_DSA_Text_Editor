@@ -3,6 +3,14 @@
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+int last_was_tab = 0;
+int current_suggestion_index = 0;
+int inserted_len = 0;
+int suggestion_count = 0;
+char tab_results[10][256];
+int original_prefix_len = 0;
 
 void printListWithCursor(EditorList *list) {
   if (list->cursor == NULL)
@@ -33,7 +41,7 @@ void printSuggestions(EditorList *list, TrieNode *dictRoot) {
   char results[10][256];
   int count = suggest(dictRoot, prefix, results);
 
-  printf("\n Goi y (Bam TAB de chon tu 1): \n");
+  printf("\n Gợi ý (Bấm TAB để chọn từ): \n");
   for (int i = 0; i < count; i++) {
     printf("%d. %s\n", i + 1, results[i]);
   }
@@ -41,11 +49,13 @@ void printSuggestions(EditorList *list, TrieNode *dictRoot) {
 }
 
 int main() {
+  system("chcp 65001 > nul");
   EditorList list;
   initList(&list);
-  TrieNode *dictRoot = create_node();
+  TrieNode *dictRoot = create_node('\0');
 
   load_txt(dictRoot, "../data/google-10000-english-no-swears.txt");
+  load_txt(dictRoot, "../data/Viet11K.txt");
 
   while (1) {
     system("cls");
@@ -54,8 +64,52 @@ int main() {
 
     char ch = _getch();
 
+    if (ch != 9) {
+      last_was_tab = 0;
+    }
     if (ch == 27) {
       break;
+    } else if (ch == 9) {
+      if (last_was_tab == 0) {
+        char prefix[256] = "";
+        int i = 0;
+        Node *p = list.cursor;
+        while (p != NULL && p->data != '\n' && p->data != ' ') {
+          p = p->prev;
+        }
+        Node *startNode = (p == NULL) ? list.head : p->next;
+        while (startNode != NULL && startNode != list.cursor->next) {
+          prefix[i++] = startNode->data;
+          startNode = startNode->next;
+        }
+        prefix[i] = '\0';
+        original_prefix_len = i;
+
+        suggestion_count = suggest(dictRoot, prefix, tab_results);
+
+        if (suggestion_count > 0) {
+          current_suggestion_index = 0;
+          inserted_len = strlen(tab_results[0]) - original_prefix_len;
+          for (int k = original_prefix_len; k < strlen(tab_results[0]); k++) {
+            insertChar(&list, tab_results[0][k]);
+          }
+          last_was_tab = 1;
+        }
+      } else if (last_was_tab == 1) {
+        if (suggestion_count > 0) {
+          for (int k = 0; k < inserted_len; k++) {
+            deleteChar(&list);
+          }
+          current_suggestion_index =
+              (current_suggestion_index + 1) % suggestion_count;
+          inserted_len = strlen(tab_results[current_suggestion_index]) -
+                         original_prefix_len;
+          for (int k = original_prefix_len;
+               k < strlen(tab_results[current_suggestion_index]); k++) {
+            insertChar(&list, tab_results[current_suggestion_index][k]);
+          }
+        }
+      }
     } else if (ch == 8) {
       deleteChar(&list);
     } else if (ch == 13) {
