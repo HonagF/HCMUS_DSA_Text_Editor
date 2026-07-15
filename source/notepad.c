@@ -1,7 +1,8 @@
 #include "api.h"
 #include "autocomplete.h"
 #include "list.h"
-#include "ui.h" // thư viện các thứ
+#include "ui.h"
+#include "undo_redo.h"
 #include <gtk/gtk.h>
 #include <stdlib.h>
 
@@ -28,6 +29,9 @@ int main(int argc, char **argv) {
   state->list = malloc(sizeof(EditorList));
   initList(state->list);
 
+  state->manager = (UndoRedoManager *)malloc(sizeof(UndoRedoManager));
+  initManager(state->manager);
+
   app = gtk_application_new("org.gtk.dsa.editor", G_APPLICATION_DEFAULT_FLAGS);
 
   g_signal_connect(
@@ -38,6 +42,10 @@ int main(int argc, char **argv) {
                              argv); // lấy thong tin khi chạy ứng dụng
 
   g_object_unref(app);
+  destroyManager(state->manager);
+  free(state->manager);
+  destroyList(state->list);
+  free(state->list);
   free(state); // xóa khi ko còn dùng
   return status;
 }

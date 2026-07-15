@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "autocomplete.h"
 #include "list.h"
+#include "undo_redo.h"
 #include <gdk/gdk.h>
 #include <string.h>
 
@@ -109,7 +110,8 @@ static void update_autocomplete(EditorState *state) {
       state->is_updating_gtk = 0; // Mở lại
 
       GtkTextIter start_grey = insert_iter;
-      // Dùng g_utf8_strlen thay vì strlen vì GTK đếm theo số lượng KÝ TỰ (character), không phải số byte (strlen)
+      // Dùng g_utf8_strlen thay vì strlen vì GTK đếm theo số lượng KÝ TỰ
+      // (character), không phải số byte (strlen)
       long num_chars = g_utf8_strlen(remainder, -1);
       gtk_text_iter_backward_chars(&start_grey, num_chars);
 
@@ -148,18 +150,34 @@ static gboolean deferred_sync_and_autocomplete(gpointer user_data) {
   return G_SOURCE_REMOVE;
 }
 
-
 static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
                                guint keycode, GdkModifierType modifiers,
                                gpointer user_data) {
   EditorState *state = (EditorState *)user_data;
   gboolean handled = FALSE;
 
+  if (keyval == GDK_KEY_z && (modifiers & GDK_CONTROL_MASK)) {
+    if (canUndo(state->manager)) {
+      undo(state->manager, state->list);
+      sync_gtk_with_list(state);
+      update_autocomplete(state);
+    }
+    return TRUE;
+  }
+  if (keyval == GDK_KEY_y && (modifiers & GDK_CONTROL_MASK)) {
+    if (canRedo(state->manager)) {
+      redo(state->manager, state->list);
+      sync_gtk_with_list(state);
+      update_autocomplete(state);
+    }
+    return TRUE;
+  }
+
   if (keyval == GDK_KEY_BackSpace) {
     if (modifiers & GDK_CONTROL_MASK)
-      deleteWord(state->list);
+      recordDeleteWord(state->manager, state->list);
     else
-      deleteChar(state->list);
+      recordDeleteChar(state->manager, state->list);
     handled = TRUE;
   } else if (keyval == GDK_KEY_Left) {
     if (modifiers & GDK_CONTROL_MASK)
@@ -180,9 +198,7 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
     guint32 unicode = gdk_keyval_to_unicode(keyval);
     char utf8[7] = {0};
     int bytes = g_unichar_to_utf8(unicode, utf8);
-    for (int i = 0; i < bytes; i++) {
-      insertChar(state->list, utf8[i]);
-    }
+    recordInsert(state->manager, state->list, utf8, bytes);
     handled = TRUE;
   } else if (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter) {
     insertChar(state->list, '\n');
@@ -201,15 +217,13 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
       if (num_suggestions > 0) {
         int input_length = strlen(cur);
         const char *remainder = out[0] + input_length;
-        for (int i = 0; remainder[i] != '\0'; i++) {
-          insertChar(state->list, remainder[i]);
-        }
+        recordInsert(state->manager, state->list, remainder, strlen(remainder));
       }
       g_free(cur);
     }
     handled = TRUE;
   } else if (keyval == GDK_KEY_Delete) {
-    deleteRight(state->list);
+    recordDeleteRight(state->manager, state->list);
     handled = TRUE;
   }
 
@@ -223,17 +237,21 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
   return FALSE; // cho hiển thị các kí tự ko quan tâm
 }
 
-static void on_insert_text(GtkTextBuffer *buffer, GtkTextIter *location, gchar *text, gint len, gpointer user_data) {
-    EditorState *state = (EditorState *)user_data;
-    if (state->is_updating_gtk) return;
-    
-    for (int i = 0; i < len; i++) {
-        insertChar(state->list, text[i]);
-    }
-    
-    // Gọi autocomplete ngay sau khi Unikey nhét chữ Tiếng Việt vào
-    // Nhưng phải hoãn lại (deferred) để không làm hỏng Iterator của GTK
-    g_idle_add(deferred_sync_and_autocomplete, state);
+static void on_insert_text(GtkTextBuffer *buffer, GtkTextIter *location,
+                           gchar *text, gint len, gpointer user_data) {
+  EditorState *state = (EditorState *)user_data;
+  if (state->is_updating_gtk)
+    return;
+
+  if (len < 0) {
+    len = strlen(text);
+  }
+
+  recordInsert(state->manager, state->list, text, len);
+
+  // Gọi autocomplete ngay sau khi Unikey nhét chữ Tiếng Việt vào
+  // Nhưng phải hoãn lại (deferred) để không làm hỏng Iterator của GTK
+  g_idle_add(deferred_sync_and_autocomplete, state);
 }
 
 void setup_ui(EditorState *state, GtkApplication *app) {
