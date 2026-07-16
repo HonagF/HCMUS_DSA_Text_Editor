@@ -196,7 +196,9 @@ void undo(UndoRedoManager *mgr, EditorList *list) {
     int len = strlen(cmd->data);
     moveCursorToIndex(list, cmd->position + len);
     for (int i = 0; i < len; i++) {
-      deleteChar(list);
+      if ((cmd->data[i] & 0xC0) != 0x80) {
+        deleteChar(list);
+      }
     }
     break;
 
@@ -237,14 +239,21 @@ void redo(UndoRedoManager *mgr, EditorList *list) {
 
   case ACTION_DELETE_LEFT:
     moveCursorToIndex(list, cmd->position);
-    deleteChar(list);
+    for (int i = 0; i < strlen(cmd->data); i++) {
+      if ((cmd->data[i] & 0xC0) != 0x80) {
+        deleteChar(list);
+      }
+    }
     break;
 
   case ACTION_DELETE_RIGHT:
     moveCursorToIndex(list, cmd->position);
-    deleteRight(list);
+    for (int i = 0; i < strlen(cmd->data); i++) {
+      if ((cmd->data[i] & 0xC0) != 0x80) {
+        deleteRight(list);
+      }
+    }
     break;
   }
-
   push(&mgr->undoStack, cmd);
 }
