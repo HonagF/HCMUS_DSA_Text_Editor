@@ -1,5 +1,6 @@
 #include "undo_redo.h"
 #include <stdlib.h>
+#include <string.h>
 
 void initStack(CommandStack *stack) {
   stack->top = NULL;
@@ -175,7 +176,7 @@ void undo(UndoRedoManager *mgr, EditorList *list) {
   Command *cmd = pop(&mgr->undoStack);
 
   switch (cmd->type) {
-  case ACTION_INSERT:
+  case ACTION_INSERT: {
     /* đảo ngược: xoá ký tự vừa chèn */
     int len = strlen(cmd->data);
     moveCursorToIndex(list, cmd->position + len);
@@ -185,7 +186,7 @@ void undo(UndoRedoManager *mgr, EditorList *list) {
       }
     }
     break;
-
+  }
   case ACTION_DELETE_LEFT:
     /* đảo ngược: chèn lại ký tự đã backspace */
     moveCursorToIndex(list, cmd->position - strlen(cmd->data));
