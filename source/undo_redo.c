@@ -38,22 +38,6 @@ void clearStack(CommandStack *stack) {
   stack->size = 0;
 }
 
-static void moveCursorToIndex(EditorList *list, int target) {
-  int prev_index;
-  while (list->index_cursor < target) {
-    prev_index = list->index_cursor;
-    moveCursorRight(list);
-    if (list->index_cursor == prev_index)
-      break;
-  }
-  while (list->index_cursor > target) {
-    prev_index = list->index_cursor;
-    moveCursorLeft(list);
-    if (list->index_cursor == prev_index)
-      break;
-  }
-}
-
 void initManager(UndoRedoManager *mgr) {
   initStack(&mgr->undoStack);
   initStack(&mgr->redoStack);
@@ -256,4 +240,21 @@ void redo(UndoRedoManager *mgr, EditorList *list) {
     break;
   }
   push(&mgr->undoStack, cmd);
+}
+
+void recordDeleteRange(UndoRedoManager *mgr, EditorList *list,
+                       const char *deleted_text, int len) {
+  Command *cmd = (Command *)malloc(sizeof(Command));
+  cmd->data = (char *)malloc(len + 1);
+  strncpy(cmd->data, deleted_text, len);
+  cmd->data[len] = '\0';
+  cmd->position = list->index_cursor;
+  cmd->type = ACTION_DELETE_LEFT;
+
+  int target_index = list->index_cursor - len;
+  while (list->index_cursor > target_index) {
+    deleteChar(list);
+  }
+  push(&mgr->undoStack, cmd);
+  clearStack(&mgr->redoStack);
 }

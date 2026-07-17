@@ -28,5 +28,5 @@ int getColumn(EditorList *list);
 void moveCursorUp(EditorList *list);
 void moveCursorDown(EditorList *list);
 void deleteWord(EditorList *list);
-
+void moveCursorToIndex(EditorList *list, int target);
 #endif

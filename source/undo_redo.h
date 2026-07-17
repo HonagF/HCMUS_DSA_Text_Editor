@@ -44,6 +44,8 @@ void recordInsert(UndoRedoManager *mgr, EditorList *list, const char *text,
 void recordDeleteChar(UndoRedoManager *mgr, EditorList *list);
 void recordDeleteRight(UndoRedoManager *mgr, EditorList *list);
 void recordDeleteWord(UndoRedoManager *mgr, EditorList *list);
+void recordDeleteRange(UndoRedoManager *mgr, EditorList *list,
+                       const char *deleted_text, int len);
 
 void undo(UndoRedoManager *mgr, EditorList *list);
 void redo(UndoRedoManager *mgr, EditorList *list);

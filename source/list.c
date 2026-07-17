@@ -230,3 +230,19 @@ void deleteWord(EditorList *list) {
     deleteChar(list);
   }
 }
+
+void moveCursorToIndex(EditorList *list, int target) {
+  int prev_index;
+  while (list->index_cursor < target) {
+    prev_index = list->index_cursor;
+    moveCursorRight(list);
+    if (list->index_cursor == prev_index)
+      break;
+  }
+  while (list->index_cursor > target) {
+    prev_index = list->index_cursor;
+    moveCursorLeft(list);
+    if (list->index_cursor == prev_index)
+      break;
+  }
+}
