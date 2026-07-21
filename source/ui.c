@@ -316,7 +316,7 @@ static void apply_css(void) {
       ".toolbar button:hover { background: #3d3d3d; color: white; }"
       ".sidebar { background: #252526; border-right: 1px solid #1a1a1a; }"
       ".sidebar button { margin: 2px 8px; padding: 6px 12px; border-radius: "
-      "4px; text-align: left; background: transparent; color: #cccccc; border: "
+      "4px; background: transparent; color: #cccccc; border: "
       "none; }"
       ".sidebar button:hover { background: #3d3d3d; color: white; }"
       ".sidebar button.active { background: #37373d; color: white; }"
@@ -659,17 +659,6 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   gtk_widget_set_margin_start(logo, 12);
   gtk_box_append(GTK_BOX(header), logo);
 
-  const char *menu[] = {"File", "Edit", "Search", "View", NULL};
-  for (int i = 0; menu[i]; i++) {
-    GtkWidget *btn = gtk_button_new_with_label(menu[i]);
-    if (i == 2) {
-      gtk_widget_add_css_class(btn, "active");
-      g_signal_connect(btn, "clicked", G_CALLBACK(on_search_menu_clicked),
-                       state);
-    }
-    gtk_box_append(GTK_BOX(header), btn);
-  }
-
   GtkWidget *spacer = gtk_label_new("");
   gtk_widget_set_hexpand(spacer, TRUE);
   gtk_box_append(GTK_BOX(header), spacer);
@@ -684,12 +673,6 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   g_signal_connect(redo_btn, "clicked", G_CALLBACK(on_redo_clicked), state);
   gtk_box_append(GTK_BOX(header), redo_btn);
 
-  GtkWidget *save_btn = gtk_button_new_from_icon_name("document-save-symbolic");
-  gtk_box_append(GTK_BOX(header), save_btn);
-
-  GtkWidget *settings_btn =
-      gtk_button_new_from_icon_name("emblem-system-symbolic");
-  gtk_box_append(GTK_BOX(header), settings_btn);
   gtk_box_append(GTK_BOX(vbox), header);
 
   // ===== TOOLBAR (Cut/Copy/Paste/Clear) =====
