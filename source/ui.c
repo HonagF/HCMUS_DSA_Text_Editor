@@ -5,71 +5,64 @@
 #include <gdk/gdk.h>
 #include <string.h>
 
-// Hàm tạm thời duyệt Danh sách liên kết và gom thành một chuỗi ký tự
+// ===== HÀM HELPER XÓA TOÀN BỘ DANH SÁCH =====
+static void clear_editor_list(EditorList *list) {
+    if (!list) return;
+    Node *cur = list->head;
+    while (cur) {
+        Node *next = cur->next;
+        free(cur);
+        cur = next;
+    }
+    list->head = NULL;
+    list->tail = NULL;
+    list->cursor = NULL;
+    list->size = 0;
+    list->index_cursor = 0;
+}
+
+// Hàm duyệt list thành chuỗi
 static char *get_text_from_list(EditorList *list) {
-  // Nếu danh sách rỗng, trả về một chuỗi rỗng để GTK không in ra rác
   if (list == NULL || list->size == 0) {
-    char *empty_str = g_malloc(1); // Dùng g_malloc của GTK
+    char *empty_str = g_malloc(1);
     empty_str[0] = '\0';
     return empty_str;
   }
 
-  // Cấp phát bộ nhớ: Kích thước của chuỗi bằng số lượng node + 1 ký tự kết thúc
-  // '\0'
   char *full_text = g_malloc(list->size + 1);
   int i = 0;
-
-  // Duyệt từ Node đầu tiên (head) đến cuối danh sách
   Node *current = list->head;
   while (current != NULL) {
-    full_text[i] = current->data; // Lấy kÛ tự từ node
-    current = current->next;      // Nhảy sang node tiếp theo
+    full_text[i] = current->data;
+    current = current->next;
     i++;
   }
-
-  // Đóng chuỗi lại chuẩn C
   full_text[i] = '\0';
-
   return full_text;
 }
 
-// Hàm này dò ngược từ vị trí con trỏ hiện tại để lấy từ đang gõ dở
 static char *get_current_word_from_list(EditorList *list) {
-  // Nếu danh sách rỗng hoặc con trỏ không trỏ vào đâu, trả về NULL
   if (list == NULL || list->cursor == NULL)
     return NULL;
 
   int len = 0;
   Node *temp = list->cursor;
-
-  // BƯỚC 1: Đếm độ dài của từ
-  // Đi lùi (temp->prev) cho đến khi gặp khoảng trắng, xuống dòng hoặc chạm đầu
-  // list
   while (temp != NULL && temp->data != ' ' && temp->data != '\n') {
     len++;
     temp = temp->prev;
   }
 
-  // Nếu độ dài = 0 (tức là con trỏ đang đứng ngay tại khoảng trắng), không có
-  // từ nào để auto-complete
   if (len == 0)
     return NULL;
 
-  // BƯỚC 2: Cấp phát bộ nhớ cho chuỗi
-  char *word =
-      g_malloc(len + 1); // Cấp phát thêm 1 byte cho kÛ tự kết thúc chuỗi '\0'
+  char *word = g_malloc(len + 1);
   word[len] = '\0';
-
-  // BƯỚC 3: Điền các ký tự vào chuỗi
-  // Vì ta đang đi lùi từ đuôi của từ, ta phải điền vào mảng từ vị trí cuối lên
-  // vị trí đầu (len - 1 về 0)
   temp = list->cursor;
   for (int i = len - 1; i >= 0; i--) {
     word[i] = temp->data;
     temp = temp->prev;
   }
-
-  return word; // Trả về chuỗi chứa từ hiện tại
+  return word;
 }
 
 static void update_autocomplete(EditorState *state) {
@@ -87,13 +80,11 @@ static void update_autocomplete(EditorState *state) {
       int input_length = strlen(cur);
       const char *remainder = out[0] + input_length;
 
-      state->is_updating_gtk = 1; // Ngăn chặn on_insert_text bắt chữ xám
+      state->is_updating_gtk = 1;
       gtk_text_buffer_insert(state->buffer, &insert_iter, remainder, -1);
-      state->is_updating_gtk = 0; // Mở lại
+      state->is_updating_gtk = 0;
 
       GtkTextIter start_grey = insert_iter;
-      // Dùng g_utf8_strlen thay vì strlen vì GTK đếm theo số lượng KÝ TỰ
-      // (character), không phải số byte (strlen)
       long num_chars = g_utf8_strlen(remainder, -1);
       gtk_text_iter_backward_chars(&start_grey, num_chars);
 
@@ -140,6 +131,14 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
   EditorState *state = (EditorState *)user_data;
   gboolean handled = FALSE;
 
+  // Xử lý Ctrl+A
+  if ((modifiers & GDK_CONTROL_MASK) && keyval == GDK_KEY_a) {
+    GtkTextIter start, end;
+    gtk_text_buffer_get_bounds(state->buffer, &start, &end);
+    gtk_text_buffer_select_range(state->buffer, &start, &end);
+    return TRUE;
+  }
+
   if ((modifiers & GDK_CONTROL_MASK) && keyval == GDK_KEY_f) {
     state->search_visible = !state->search_visible;
     gtk_widget_set_visible(state->search_panel, state->search_visible);
@@ -165,11 +164,29 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
     return TRUE;
   }
 
+  // Kiểm tra vùng chọn
+  gboolean has_selection = FALSE;
+  GtkTextIter sel_start, sel_end;
+  if (gtk_text_buffer_get_selection_bounds(state->buffer, &sel_start, &sel_end)) {
+    has_selection = TRUE;
+  }
+
+  // Xử lý phím xóa
   if (keyval == GDK_KEY_BackSpace) {
+    if (has_selection) {
+      // Để GTK xử lý xóa vùng chọn mặc định
+      return FALSE;
+    }
     if (modifiers & GDK_CONTROL_MASK)
       recordDeleteWord(state->manager, state->list);
     else
       recordDeleteChar(state->manager, state->list);
+    handled = TRUE;
+  } else if (keyval == GDK_KEY_Delete) {
+    if (has_selection) {
+      return FALSE;
+    }
+    recordDeleteRight(state->manager, state->list);
     handled = TRUE;
   } else if (keyval == GDK_KEY_Left) {
     if (modifiers & GDK_CONTROL_MASK)
@@ -218,19 +235,14 @@ static gboolean on_key_pressed(GtkEventControllerKey *controller, guint keyval,
       g_free(cur);
     }
     handled = TRUE;
-  } else if (keyval == GDK_KEY_Delete) {
-    recordDeleteRight(state->manager, state->list);
-    handled = TRUE;
-  }
+  } // (không xử lý các phím khác)
 
-  // kiểm tra đánh thường
   if (handled) {
     sync_gtk_with_list(state);
-
     update_autocomplete(state);
-    return TRUE; // trả false để hiển thị
+    return TRUE;
   }
-  return FALSE; // cho hiển thị các kí tự ko quan tâm
+  return FALSE;
 }
 
 static void on_insert_text(GtkTextBuffer *buffer, GtkTextIter *location,
@@ -244,24 +256,17 @@ static void on_insert_text(GtkTextBuffer *buffer, GtkTextIter *location,
   }
 
   recordInsert(state->manager, state->list, text, len);
-
-  // Gọi autocomplete ngay sau khi Unikey nhét chữ Tiếng Việt vào
-  // Nhưng phải hoãn lại (deferred) để không làm hỏng Iterator của GTK
   g_idle_add(deferred_sync_and_autocomplete, state);
 }
 
 static void on_cursor_moved(GtkTextBuffer *buffer, GParamSpec *pspec,
                             gpointer user_data) {
   EditorState *state = (EditorState *)user_data;
-
-  // Đừng chạy nếu GUI đang tự động update để tránh lặp vô tận
   if (state->is_updating_gtk)
     return;
-  // Lấy vị trí con trỏ hiện tại của màn hình GTK
   GtkTextIter iter;
   gtk_text_buffer_get_iter_at_mark(buffer, &iter,
                                    gtk_text_buffer_get_insert(buffer));
-  // Cắt lấy chuỗi từ đầu văn bản đến đúng chỗ con trỏ
   GtkTextIter start;
   gtk_text_buffer_get_start_iter(buffer, &start);
   char *text = gtk_text_buffer_get_text(buffer, &start, &iter, FALSE);
@@ -275,20 +280,33 @@ static void on_delete_range(GtkTextBuffer *buffer, GtkTextIter *start,
   EditorState *state = (EditorState *)user_data;
   if (state->is_updating_gtk)
     return;
-  // Lấy đoạn text bị bôi đen xóa ra
+
   char *deleted_text = gtk_text_buffer_get_text(buffer, start, end, FALSE);
   int len = strlen(deleted_text);
-  // Tính toán số byte từ đầu file đến điểm cuối của vùng xóa
+
+  // Lấy offset byte của điểm bắt đầu
   GtkTextIter text_start;
   gtk_text_buffer_get_start_iter(buffer, &text_start);
-  char *text_before_end =
-      gtk_text_buffer_get_text(buffer, &text_start, end, FALSE);
-  int end_offset = strlen(text_before_end);
-  g_free(text_before_end);
-  // Ép con trỏ DLL chạy đến cuối vùng bị xóa, rồi kích hoạt hàm
-  // recordDeleteRange ở trên
-  moveCursorToIndex(state->list, end_offset);
-  recordDeleteRange(state->manager, state->list, deleted_text, len);
+  char *text_before_start =
+      gtk_text_buffer_get_text(buffer, &text_start, start, FALSE);
+  int start_offset = strlen(text_before_start);
+  g_free(text_before_start);
+
+  // Kiểm tra xem vùng xóa có phải là toàn bộ văn bản không
+  GtkTextIter buffer_start, buffer_end;
+  gtk_text_buffer_get_bounds(buffer, &buffer_start, &buffer_end);
+  char *full_text = gtk_text_buffer_get_text(buffer, &buffer_start, &buffer_end, FALSE);
+  int total_bytes = strlen(full_text);
+  g_free(full_text);
+
+  if (start_offset == 0 && len == total_bytes) {
+    // Xóa toàn bộ văn bản: tự xóa list thủ công
+    clear_editor_list(state->list);
+  } else {
+    // Xóa một phần: di chuyển con trỏ và gọi recordDeleteRange
+    moveCursorToIndex(state->list, start_offset);
+    recordDeleteRange(state->manager, state->list, deleted_text, len);
+  }
 
   g_free(deleted_text);
 }
@@ -359,9 +377,8 @@ static void on_redo_clicked(GtkButton *button, gpointer user_data) {
 
 static void on_clear_clicked(GtkButton *button, gpointer user_data) {
   EditorState *state = (EditorState *)user_data;
-  // Xoá toàn bộ văn bản trên giao diện
-  gtk_text_buffer_set_text(state->buffer, "", -1);
-  // TODO: đồng bộ lại list nếu cần (có thể thêm hàm clearList)
+  clear_editor_list(state->list);
+  sync_gtk_with_list(state);
 }
 
 static void on_cut_clicked(GtkButton *button, gpointer user_data) {
@@ -646,11 +663,10 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   gtk_window_set_title(GTK_WINDOW(window), "Pad");
   gtk_window_set_default_size(GTK_WINDOW(window), 1200, 800);
 
-  // Main layout
   GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_window_set_child(GTK_WINDOW(window), vbox);
 
-  // ===== HEADER =====
+  // HEADER
   GtkWidget *header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   gtk_widget_add_css_class(header, "header");
   gtk_widget_set_size_request(header, -1, 48);
@@ -675,7 +691,7 @@ void setup_ui(EditorState *state, GtkApplication *app) {
 
   gtk_box_append(GTK_BOX(vbox), header);
 
-  // ===== TOOLBAR (Cut/Copy/Paste/Clear) =====
+  // TOOLBAR
   GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_widget_add_css_class(toolbar, "toolbar");
 
@@ -703,12 +719,11 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   gtk_box_append(GTK_BOX(toolbar), clear_btn);
   gtk_box_append(GTK_BOX(vbox), toolbar);
 
-  // ===== BODY (Sidebar + Editor) =====
+  // BODY
   GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_vexpand(hbox, TRUE);
   gtk_box_append(GTK_BOX(vbox), hbox);
 
-  // Sidebar
   GtkWidget *sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
   gtk_widget_add_css_class(sidebar, "sidebar");
   gtk_widget_set_size_request(sidebar, 220, -1);
@@ -728,13 +743,11 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   gtk_box_append(GTK_BOX(sidebar), spacer2);
   gtk_box_append(GTK_BOX(hbox), sidebar);
 
-  // Overlay (editor + search panel)
   GtkWidget *overlay = gtk_overlay_new();
   gtk_widget_set_hexpand(overlay, TRUE);
   gtk_widget_set_vexpand(overlay, TRUE);
   gtk_box_append(GTK_BOX(hbox), overlay);
 
-  // ScrolledWindow + TextView
   GtkWidget *scrolled = gtk_scrolled_window_new();
   GtkWidget *text_view = gtk_text_view_new();
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(text_view), GTK_WRAP_WORD_CHAR);
@@ -746,17 +759,14 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   state->buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view));
   state->text_view = text_view;
 
-  // DEV BRANCH LOGIC: Tag for autocomplete
   gtk_text_buffer_create_tag(state->buffer, "ghost_text", "foreground",
                              "#888888", NULL);
 
-  // DEV BRANCH LOGIC: Tag for search
   highlight_tag = gtk_text_buffer_create_tag(
       state->buffer, "highlight", "background", "rgba(0,120,212,0.4)", NULL);
   current_tag = gtk_text_buffer_create_tag(state->buffer, "current-highlight",
                                            "background", "#f0ad4e", NULL);
 
-  // DEV BRANCH LOGIC: Signals
   g_signal_connect(state->buffer, "insert-text", G_CALLBACK(on_insert_text),
                    state);
   g_signal_connect(state->buffer, "notify::cursor-position",
@@ -772,13 +782,12 @@ void setup_ui(EditorState *state, GtkApplication *app) {
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), text_view);
   gtk_overlay_set_child(GTK_OVERLAY(overlay), scrolled);
 
-  // Search panel
   state->search_panel = create_search_panel(state);
   gtk_widget_set_visible(state->search_panel, FALSE);
   state->search_visible = FALSE;
   gtk_overlay_add_overlay(GTK_OVERLAY(overlay), state->search_panel);
 
-  // ===== STATUSBAR =====
+  // STATUSBAR
   GtkWidget *status = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
   gtk_widget_add_css_class(status, "statusbar");
   GtkWidget *ln = gtk_label_new("Ln 1, Col 1");
